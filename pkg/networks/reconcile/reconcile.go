@@ -67,7 +67,8 @@ func Reconcile(ctx context.Context, newInst string) error {
 }
 
 func sudo(command string) error {
-	var args = strings.Split(command, " ")
+	args := []string{"--askpass"}
+	args = append(args, strings.Split(command, " ")...)
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command("sudo", args...)
 	cmd.Stdout = &stdout
