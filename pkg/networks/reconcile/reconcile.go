@@ -66,12 +66,18 @@ func Reconcile(ctx context.Context, newInst string) error {
 	return nil
 }
 
-func sudo(user, group, command string) error {
-	args := []string{"--user", user, "--group", group, "--non-interactive"}
-	args = append(args, strings.Split(command, " ")...)
-	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("sudo", args...)
-	cmd.Stdout = &stdout
+func sudo(command string) error {
+    user, err := osutil.LookupUser("root")
+    if err != nil {
+        return fmt.Errorf("Unexpected lookup for user: %v", err)
+    }
+
+    var stdout, stderr bytes.Buffer
+
+	cmd := exec.Command(command)
+    cmd.SysProcAttr = &syscall.SysProcAttr{}
+    cmd.SysProcAttr.Credential = &syscall.Credential{Uid: user.Uid, Gid: user.Gid}
+    cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	logrus.Debugf("Running: %v", cmd.Args)
 	if err := cmd.Run(); err != nil {
@@ -82,7 +88,7 @@ func sudo(user, group, command string) error {
 }
 
 func makeVarRun(config *networks.NetworksConfig) error {
-	err := sudo("root", "wheel", config.MkdirCmd())
+	err := sudo(config.MkdirCmd())
 	if err != nil {
 		return err
 	}
@@ -121,13 +127,8 @@ func startDaemon(config *networks.NetworksConfig, ctx context.Context, name, dae
 	if err := os.MkdirAll(networksDir, 0755); err != nil {
 		return err
 	}
-	user, err := config.User(daemon)
-	if err != nil {
-		return err
-	}
 
-	args := []string{"--user", user.User, "--group", user.Group, "--non-interactive"}
-	args = append(args, strings.Split(config.StartCmd(name, daemon), " ")...)
+	args := strings.Split(config.StartCmd(name, daemon), " ")
 	cmd := exec.CommandContext(ctx, "sudo", args...)
 	// set directory to a path the daemon user has read access to because vde_switch calls getcwd() which
 	// can fail when called from directories like ~/Downloads, which has 700 permissions
@@ -202,12 +203,7 @@ func stopNetwork(config *networks.NetworksConfig, name string) error {
 			if err := validateConfig(config); err != nil {
 				return err
 			}
-			user, err := config.User(daemon)
-			if err != nil {
-				return err
-			}
-			err = sudo(user.User, user.Group, config.StopCmd(name, daemon))
-			if err != nil {
+			if err := sudo(config.StopCmd(name, daemon)); err != nil {
 				return err
 			}
 		}

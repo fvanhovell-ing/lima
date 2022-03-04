@@ -53,15 +53,9 @@ func (config *NetworksConfig) passwordLessSudo() error {
 	}
 	// Verify that user/groups for both daemons work without a password, e.g.
 	// %admin ALL = (ALL:ALL) NOPASSWD: ALL
-	for _, daemon := range []string{Switch, VMNet} {
-		user, err := config.User(daemon)
-		if err != nil {
-			return err
-		}
-		cmd = exec.Command("sudo", "--user", user.User, "--group", user.Group, "--non-interactive", "true")
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to run %v: %w", cmd.Args, err)
-		}
+	cmd = exec.Command("sudo")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run %v: %w", cmd.Args, err)
 	}
 	return nil
 }
