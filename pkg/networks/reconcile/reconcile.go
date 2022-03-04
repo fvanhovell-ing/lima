@@ -67,11 +67,17 @@ func Reconcile(ctx context.Context, newInst string) error {
 }
 
 func sudo(command string) error {
-	args := []string{"--askpass"}
-	args = append(args, strings.Split(command, " ")...)
-	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("sudo", args...)
-	cmd.Stdout = &stdout
+    user, err := osutil.LookupUser("root")
+    if err != nil {
+        return fmt.Errorf("Unexpected lookup for user: %v", err)
+    }
+
+    var stdout, stderr bytes.Buffer
+
+	cmd := exec.Command(command)
+    cmd.SysProcAttr = &syscall.SysProcAttr{}
+    cmd.SysProcAttr.Credential = &syscall.Credential{Uid: user.Uid, Gid: user.Gid}
+    cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	logrus.Debugf("Running: %v", cmd.Args)
 	if err := cmd.Run(); err != nil {
